@@ -26,12 +26,12 @@ const Admin = () => {
   };
 
   return (
-    <Container className="py-5">
-      <Card className="shadow-sm">
-        <Card.Header className="bg-primary text-white">
-          <h2 className="text-center">Admin Login</h2>
+    <Container className="py-5 d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>
+      <Card className="shadow-sm" style={{ maxWidth: '400px', width: '100%' }}>
+        <Card.Header className="bg-dark text-white">
+          <h4 className="text-center mb-0">Admin Login</h4>
         </Card.Header>
-        <Card.Body>
+        <Card.Body className="bg-light">
           {error && (
             <Alert variant="danger" dismissible onClose={() => setError('')}>
               {error}
@@ -45,6 +45,7 @@ const Admin = () => {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
+                className="bg-white"
               />
             </Form.Group>
             <Form.Group className="mb-3">
@@ -54,9 +55,10 @@ const Admin = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                className="bg-white"
               />
             </Form.Group>
-            <Button type="submit" variant="primary" className="w-100">
+            <Button type="submit" variant="dark" className="w-100">
               Login
             </Button>
           </Form>

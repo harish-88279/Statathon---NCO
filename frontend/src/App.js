@@ -126,17 +126,17 @@ function App() {
           <table className="table table-striped table-bordered">
             <thead className="thead-dark">
               <tr>
-                <th>Code</th>
-                <th>Title</th>
                 <th>NCO 2004 Code</th>
+                <th>Code 2015</th>
+                <th>Job Title</th>
               </tr>
             </thead>
             <tbody>
               {data.map((occupation, index) => (
                 <tr key={index}>
+                  <td>{occupation.NCO_2004_Code}</td>
                   <td>{occupation.Code}</td>
                   <td>{occupation.Title}</td>
-                  <td>{occupation.NCO_2004_Code}</td>
                 </tr>
               ))}
             </tbody>

@@ -164,3 +164,22 @@ app.delete('/api/occupations/:id', async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
+// Search occupations
+app.get('/api/occupations/search', async (req, res) => {
+  try {
+    const { term, type } = req.query;
+    let query = {};
+
+    if (type === 'code') {
+      query = { 'Occupations.Code': { $regex: term, $options: 'i' } };
+    } else {
+      query = { 'Occupations.Title': { $regex: term, $options: 'i' } };
+    }
+
+    const results = await Occupation.find(query);
+    res.json(results);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
