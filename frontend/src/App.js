@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { Container, Card, Alert } from 'react-bootstrap';
 import './App.css';
+import Admin from './components/Admin';
+import AdminDashboard from './components/AdminDashboard';
 
 const TreeNode = ({ label, children, isExpanded, onToggle }) => {
   return (
@@ -159,37 +162,45 @@ function App() {
   };
 
   return (
-    <Container className="py-5">
-      <Card className="shadow-sm mb-5">
-        <Card.Header className="bg-primary text-white">
-          <h1 className="text-center">Government Occupational Database</h1>
-        </Card.Header>
-        <Card.Body>
-          {importStatus && (
-            <Alert variant={importStatus.type} dismissible>
-              {importStatus.message}
-            </Alert>
-          )}
-          
-          {error && (
-            <Alert variant="danger" dismissible onClose={() => setError(null)}>
-              {error}
-            </Alert>
-          )}
+    <Router>
+      <Routes>
+        <Route path="/" element={
+          <Container className="py-5">
+            <Card className="shadow-sm mb-5">
+              <Card.Header className="bg-primary text-white">
+                <h1 className="text-center">Government Occupational Database</h1>
+              </Card.Header>
+              <Card.Body>
+                {importStatus && (
+                  <Alert variant={importStatus.type} dismissible>
+                    {importStatus.message}
+                  </Alert>
+                )}
+                
+                {error && (
+                  <Alert variant="danger" dismissible onClose={() => setError(null)}>
+                    {error}
+                  </Alert>
+                )}
 
-          {loading ? (
-            <div className="text-center">Loading...</div>
-          ) : (
-            <div className="tree-view">
-              {renderTree(hierarchyData)}
-            </div>
-          )}
-        </Card.Body>
-        <Card.Footer className="text-center text-muted">
-          Government Occupational Database © {new Date().getFullYear()}
-        </Card.Footer>
-      </Card>
-    </Container>
+                {loading ? (
+                  <div className="text-center">Loading...</div>
+                ) : (
+                  <div className="tree-view">
+                    {renderTree(hierarchyData)}
+                  </div>
+                )}
+              </Card.Body>
+              <Card.Footer className="text-center text-muted">
+                Government Occupational Database © {new Date().getFullYear()}
+              </Card.Footer>
+            </Card>
+          </Container>
+        } />
+        <Route path="/admin" element={<Admin />} />
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+      </Routes>
+    </Router>
   );
 }
 

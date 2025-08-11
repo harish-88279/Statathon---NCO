@@ -104,6 +104,30 @@ app.post('/api/import-data', async (req, res) => {
   }
 });
 
+// Admin Schema
+const AdminSchema = new mongoose.Schema({
+  username: String,
+  password: String
+});
+
+const Admin = mongoose.model('Admin', AdminSchema);
+
+// Admin Routes
+app.post('/api/admin/login', async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    const admin = await Admin.findOne({ username, password });
+    
+    if (!admin) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    res.json({ message: 'Login successful' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
