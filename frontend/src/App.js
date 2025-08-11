@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Container, Card, Alert } from 'react-bootstrap';
+import { Container, Card, Alert, Form, InputGroup } from 'react-bootstrap';
 import './App.css';
 import Admin from './components/Admin';
 import AdminDashboard from './components/AdminDashboard';
@@ -43,6 +43,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [importStatus, setImportStatus] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const API_URL = 'http://localhost:5000/api';
 
@@ -161,16 +162,80 @@ function App() {
     });
   };
 
+  const filterData = (data, term) => {
+    if (!term) return data;
+    const searchLower = term.toLowerCase();
+    
+    const filtered = {};
+    Object.entries(data).forEach(([division, subdivisions]) => {
+      if (division.toLowerCase().includes(searchLower)) {
+        filtered[division] = subdivisions;
+        return;
+      }
+      
+      const filteredSubdivisions = {};
+      Object.entries(subdivisions).forEach(([subdivision, groups]) => {
+        if (subdivision.toLowerCase().includes(searchLower)) {
+          filteredSubdivisions[subdivision] = groups;
+          return;
+        }
+        
+        const filteredGroups = {};
+        Object.entries(groups).forEach(([group, families]) => {
+          if (group.toLowerCase().includes(searchLower)) {
+            filteredGroups[group] = families;
+            return;
+          }
+          
+          const filteredFamilies = {};
+          Object.entries(families).forEach(([family, occupations]) => {
+            if (family.toLowerCase().includes(searchLower) ||
+                occupations.some(occ => 
+                  occ.Title.toLowerCase().includes(searchLower) ||
+                  occ.Code.toLowerCase().includes(searchLower) ||
+                  occ.NCO_2004_Code.toLowerCase().includes(searchLower)
+                )
+            ) {
+              filteredFamilies[family] = occupations;
+            }
+          });
+          
+          if (Object.keys(filteredFamilies).length > 0) {
+            filteredGroups[group] = filteredFamilies;
+          }
+        });
+        
+        if (Object.keys(filteredGroups).length > 0) {
+          filteredSubdivisions[subdivision] = filteredGroups;
+        }
+      });
+      
+      if (Object.keys(filteredSubdivisions).length > 0) {
+        filtered[division] = filteredSubdivisions;
+      }
+    });
+    
+    return filtered;
+  };
+
   return (
     <Router>
       <Routes>
         <Route path="/" element={
-          <Container className="py-5">
-            <Card className="shadow-sm mb-5">
-              <Card.Header className="bg-primary text-white">
-                <h1 className="text-center">Government Occupational Database</h1>
+          <Container fluid className="py-4">
+            <Card className="shadow-sm mb-4">
+              <Card.Header className="bg-dark text-white">
+                <h1 className="text-center mb-0">Government Occupational Database</h1>
               </Card.Header>
-              <Card.Body>
+              <Card.Body className="bg-light">
+                <InputGroup className="mb-3">
+                  <Form.Control
+                    placeholder="Search occupations..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </InputGroup>
+
                 {importStatus && (
                   <Alert variant={importStatus.type} dismissible>
                     {importStatus.message}
@@ -187,7 +252,7 @@ function App() {
                   <div className="text-center">Loading...</div>
                 ) : (
                   <div className="tree-view">
-                    {renderTree(hierarchyData)}
+                    {renderTree(filterData(hierarchyData, searchTerm))}
                   </div>
                 )}
               </Card.Body>

@@ -131,3 +131,36 @@ app.post('/api/admin/login', async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
+
+
+// Add new occupation
+app.post('/api/occupations', async (req, res) => {
+  try {
+    const newOccupation = new Occupation({
+      Division_Title: req.body.Division_Title,
+      Sub_Division_Title: req.body.Sub_Division_Title,
+      Group_Title: req.body.Group_Title,
+      Family_Title: req.body.Family_Title,
+      Occupations: [{
+        Code: req.body.Code,
+        Title: req.body.Title,
+        NCO_2004_Code: req.body.NCO_2004_Code
+      }]
+    });
+
+    await newOccupation.save();
+    res.status(201).json({ message: 'Occupation added successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Delete occupation
+app.delete('/api/occupations/:id', async (req, res) => {
+  try {
+    await Occupation.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Occupation deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
