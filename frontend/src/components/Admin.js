@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { Container, Card, Alert, Form, Button } from 'react-bootstrap';
+import { API_URL } from '../config';
 
 const Admin = () => {
   const [username, setUsername] = useState('');
@@ -12,7 +13,7 @@ const Admin = () => {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5000/api/admin/login', {
+              const response = await axios.post(`${API_URL}/admin/login`, {
         username,
         password
       });

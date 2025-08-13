@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Container, Card, Form, Button, Alert, Table, InputGroup, Modal } from 'react-bootstrap';
 import axios from 'axios';
 import OccupationFormFields from './OccupationFormFields';
+import { API_URL } from '../config';
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -24,7 +25,7 @@ const AdminDashboard = () => {
 
   const handleSearch = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/occupations/search?term=${searchTerm}&type=${searchType}`);
+      const response = await axios.get(`${API_URL}/occupations/search?term=${searchTerm}&type=${searchType}`);
       setSearchResults(response.data);
       if (response.data.length === 0) {
         setMessage({ type: 'info', text: 'No exact matches found' });
@@ -58,7 +59,7 @@ const AdminDashboard = () => {
           NCO_2004_Code: formData.NCO_2004_Code
         }]
       };
-      await axios.put(`http://localhost:5000/api/occupations/${editingOccupation._id}`, updatedData);
+      await axios.put(`${API_URL}/occupations/${editingOccupation._id}`, updatedData);
       setMessage({ type: 'success', text: 'Occupation updated successfully' });
       setShowEditModal(false);
       handleSearch(); // Refresh search results
@@ -70,7 +71,7 @@ const AdminDashboard = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/occupations', formData);
+      await axios.post(`${API_URL}/occupations`, formData);
       setMessage({ type: 'success', text: 'Occupation added successfully' });
       setFormData({
         Division_Title: '',
@@ -89,7 +90,7 @@ const AdminDashboard = () => {
 
   const handleDelete = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/api/occupations/${id}`);
+      await axios.delete(`${API_URL}/occupations/${id}`);
       setMessage({ type: 'success', text: 'Occupation deleted successfully' });
       handleSearch(); // Refresh search results
     } catch (error) {

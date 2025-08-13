@@ -7,6 +7,7 @@ import './App.css';
 import Admin from './components/Admin';
 import AdminDashboard from './components/AdminDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
+import { API_URL } from './config';
 
 const TreeNode = ({ label, children, isExpanded, onToggle }) => {
   return (
@@ -49,7 +50,7 @@ function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
 
-  const API_URL = 'http://localhost:5000/api';
+
 
   // Import data on first load
   useEffect(() => {
