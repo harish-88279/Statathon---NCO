@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
-import { Container, Card, Form, Button, Alert, Table, InputGroup } from 'react-bootstrap';
+import { useNavigate } from 'react-router-dom';
+import { Container, Card, Form, Button, Alert, Table, InputGroup, Modal } from 'react-bootstrap';
 import axios from 'axios';
+import OccupationFormFields from './OccupationFormFields';
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchType, setSearchType] = useState('title'); // 'title' or 'code'
+  const [searchType, setSearchType] = useState('title');
   const [searchResults, setSearchResults] = useState([]);
   const [message, setMessage] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingOccupation, setEditingOccupation] = useState(null);
   const [formData, setFormData] = useState({
     Division_Title: '',
     Sub_Division_Title: '',
@@ -21,8 +26,44 @@ const AdminDashboard = () => {
     try {
       const response = await axios.get(`http://localhost:5000/api/occupations/search?term=${searchTerm}&type=${searchType}`);
       setSearchResults(response.data);
+      if (response.data.length === 0) {
+        setMessage({ type: 'info', text: 'No exact matches found' });
+      }
     } catch (error) {
       setMessage({ type: 'danger', text: 'Failed to search occupations' });
+    }
+  };
+
+  const handleEdit = (occupation) => {
+    setEditingOccupation(occupation);
+    setFormData({
+      Division_Title: occupation.Division_Title,
+      Sub_Division_Title: occupation.Sub_Division_Title,
+      Group_Title: occupation.Group_Title,
+      Family_Title: occupation.Family_Title,
+      Code: occupation.Occupations[0].Code,
+      Title: occupation.Occupations[0].Title,
+      NCO_2004_Code: occupation.Occupations[0].NCO_2004_Code
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdate = async () => {
+    try {
+      const updatedData = {
+        ...formData,
+        Occupations: [{
+          Code: formData.Code,
+          Title: formData.Title,
+          NCO_2004_Code: formData.NCO_2004_Code
+        }]
+      };
+      await axios.put(`http://localhost:5000/api/occupations/${editingOccupation._id}`, updatedData);
+      setMessage({ type: 'success', text: 'Occupation updated successfully' });
+      setShowEditModal(false);
+      handleSearch(); // Refresh search results
+    } catch (error) {
+      setMessage({ type: 'danger', text: 'Failed to update occupation' });
     }
   };
 
@@ -56,11 +97,23 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleLogout = () => {
+    localStorage.removeItem('isAdminAuthenticated');
+    localStorage.removeItem('adminLoginTime');
+    navigate('/admin');
+  };
+
   return (
     <Container className="py-4">
       <Card className="shadow-sm mb-4">
         <Card.Header className="bg-dark text-white">
-          <h4 className="text-center mb-0">Admin Dashboard</h4>
+          <div className="d-flex justify-content-between align-items-center">
+            <h4 className="mb-0">Admin Dashboard</h4>
+            <Button variant="outline-light" size="sm" onClick={handleLogout}>
+              <i className="fas fa-sign-out-alt me-1"></i>
+              Logout
+            </Button>
+          </div>
         </Card.Header>
         <Card.Body className="bg-light">
           {message && (
@@ -76,7 +129,7 @@ const AdminDashboard = () => {
             <Card.Body>
               <InputGroup className="mb-3">
                 <Form.Control
-                  placeholder="Search occupations..."
+                  placeholder="Enter exact title or code..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
@@ -105,21 +158,28 @@ const AdminDashboard = () => {
                         <th>Sub Division</th>
                         <th>Group</th>
                         <th>Family</th>
-                        <th>Action</th>
+                        <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {searchResults.map((result) => (
-                        result.Occupations.map((occupation, index) => (
-                          <tr key={`${result._id}-${index}`}>
-                            <td>{occupation.NCO_2004_Code}</td>
-                            <td>{occupation.Code}</td>
-                            <td>{occupation.Title}</td>
-                            <td>{result.Division_Title}</td>
-                            <td>{result.Sub_Division_Title}</td>
-                            <td>{result.Group_Title}</td>
-                            <td>{result.Family_Title}</td>
-                            <td>
+                        <tr key={result._id}>
+                          <td>{result.Occupations[0].NCO_2004_Code}</td>
+                          <td>{result.Occupations[0].Code}</td>
+                          <td>{result.Occupations[0].Title}</td>
+                          <td>{result.Division_Title}</td>
+                          <td>{result.Sub_Division_Title}</td>
+                          <td>{result.Group_Title}</td>
+                          <td>{result.Family_Title}</td>
+                          <td>
+                            <div className="d-flex gap-2">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => handleEdit(result)}
+                              >
+                                Edit
+                              </Button>
                               <Button
                                 variant="danger"
                                 size="sm"
@@ -127,9 +187,9 @@ const AdminDashboard = () => {
                               >
                                 Delete
                               </Button>
-                            </td>
-                          </tr>
-                        ))
+                            </div>
+                          </td>
+                        </tr>
                       ))}
                     </tbody>
                   </Table>
@@ -144,92 +204,7 @@ const AdminDashboard = () => {
             </Card.Header>
             <Card.Body>
               <Form onSubmit={handleSubmit}>
-                <div className="row">
-                  <div className="col-md-6">
-                    <Form.Group className="mb-3">
-                      <Form.Label>Division Title</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={formData.Division_Title}
-                        onChange={(e) => setFormData({...formData, Division_Title: e.target.value})}
-                        required
-                      />
-                    </Form.Group>
-                  </div>
-                  <div className="col-md-6">
-                    <Form.Group className="mb-3">
-                      <Form.Label>Sub Division Title</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={formData.Sub_Division_Title}
-                        onChange={(e) => setFormData({...formData, Sub_Division_Title: e.target.value})}
-                        required
-                      />
-                    </Form.Group>
-                  </div>
-                </div>
-
-                <div className="row">
-                  <div className="col-md-6">
-                    <Form.Group className="mb-3">
-                      <Form.Label>Group Title</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={formData.Group_Title}
-                        onChange={(e) => setFormData({...formData, Group_Title: e.target.value})}
-                        required
-                      />
-                    </Form.Group>
-                  </div>
-                  <div className="col-md-6">
-                    <Form.Group className="mb-3">
-                      <Form.Label>Family Title</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={formData.Family_Title}
-                        onChange={(e) => setFormData({...formData, Family_Title: e.target.value})}
-                        required
-                      />
-                    </Form.Group>
-                  </div>
-                </div>
-
-                <div className="row">
-                  <div className="col-md-4">
-                    <Form.Group className="mb-3">
-                      <Form.Label>NCO 2004 Code</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={formData.NCO_2004_Code}
-                        onChange={(e) => setFormData({...formData, NCO_2004_Code: e.target.value})}
-                        required
-                      />
-                    </Form.Group>
-                  </div>
-                  <div className="col-md-4">
-                    <Form.Group className="mb-3">
-                      <Form.Label>Code 2015</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={formData.Code}
-                        onChange={(e) => setFormData({...formData, Code: e.target.value})}
-                        required
-                      />
-                    </Form.Group>
-                  </div>
-                  <div className="col-md-4">
-                    <Form.Group className="mb-3">
-                      <Form.Label>Job Title</Form.Label>
-                      <Form.Control
-                        type="text"
-                        value={formData.Title}
-                        onChange={(e) => setFormData({...formData, Title: e.target.value})}
-                        required
-                      />
-                    </Form.Group>
-                  </div>
-                </div>
-
+                <OccupationFormFields formData={formData} setFormData={setFormData} />
                 <Button type="submit" variant="dark" className="w-100">
                   Add Occupation
                 </Button>
@@ -238,6 +213,26 @@ const AdminDashboard = () => {
           </Card>
         </Card.Body>
       </Card>
+
+      {/* Edit Modal */}
+      <Modal show={showEditModal} onHide={() => setShowEditModal(false)}>
+        <Modal.Header closeButton className="bg-dark text-white">
+          <Modal.Title>Edit Occupation</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <Form>
+            <OccupationFormFields formData={formData} setFormData={setFormData} />
+          </Form>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" onClick={() => setShowEditModal(false)}>
+            Cancel
+          </Button>
+          <Button variant="dark" onClick={handleUpdate}>
+            Save Changes
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </Container>
   );
 };

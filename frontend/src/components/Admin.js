@@ -18,12 +18,18 @@ const Admin = () => {
       });
       
       if (response.data.message === 'Login successful') {
+        // Store authentication state with timestamp
+        const loginTime = new Date().getTime();
+        localStorage.setItem('isAdminAuthenticated', 'true');
+        localStorage.setItem('adminLoginTime', loginTime.toString());
         navigate('/admin/dashboard');
       }
     } catch (error) {
       setError('Invalid credentials');
     }
   };
+
+
 
   return (
     <Container className="py-5 d-flex justify-content-center align-items-center" style={{ minHeight: '80vh' }}>

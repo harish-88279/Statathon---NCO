@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const { spawn } = require('child_process');
 require('dotenv').config();
 
 const app = express();
@@ -128,6 +129,37 @@ app.post('/api/admin/login', async (req, res) => {
   }
 });
 
+// Create admin user (one-time setup)
+app.post('/api/admin/setup', async (req, res) => {
+  try {
+    // Check if admin already exists
+    const existingAdmin = await Admin.findOne({});
+    if (existingAdmin) {
+      return res.status(400).json({ message: 'Admin user already exists' });
+    }
+    
+    // Create default admin user
+    const admin = new Admin({
+      username: 'admin',
+      password: 'admin123'
+    });
+    
+    await admin.save();
+    res.status(201).json({ message: 'Admin user created successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Logout endpoint
+app.post('/api/admin/logout', async (req, res) => {
+  try {
+    res.json({ message: 'Logout successful' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
@@ -169,17 +201,103 @@ app.delete('/api/occupations/:id', async (req, res) => {
 app.get('/api/occupations/search', async (req, res) => {
   try {
     const { term, type } = req.query;
-    let query = {};
+    let matchStage = {};
 
     if (type === 'code') {
-      query = { 'Occupations.Code': { $regex: term, $options: 'i' } };
+      matchStage = { 'Occupations.Code': { $regex: new RegExp('^' + term + '$', 'i') } };
     } else {
-      query = { 'Occupations.Title': { $regex: term, $options: 'i' } };
+      matchStage = { 'Occupations.Title': { $regex: new RegExp('^' + term + '$', 'i') } };
     }
 
-    const results = await Occupation.find(query);
+    // Use aggregation pipeline to remove duplicates more efficiently
+    const results = await Occupation.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: {
+            code: '$Occupations.Code',
+            title: '$Occupations.Title'
+          },
+          doc: { $first: '$$ROOT' }
+        }
+      },
+      { $replaceRoot: { newRoot: '$doc' } },
+      { $sort: { 'Occupations.Code': 1 } }
+    ]);
+    
     res.json(results);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+});
+
+// Update occupation
+app.put('/api/occupations/:id', async (req, res) => {
+  try {
+    const updatedOccupation = await Occupation.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
+    res.json(updatedOccupation);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// Add this route after your existing routes
+app.post('/api/rag-search', async (req, res) => {
+  try {
+    const { query } = req.body;
+    
+    // Use the full path to the Python executable in the virtual environment
+    // and the full path to the rag_search.py script
+    const pythonExecutable = path.join(__dirname, '..', 'hack_env', 'Scripts', 'python.exe');
+    const scriptPath = path.join(__dirname, 'rag_search.py');
+    
+    console.log(`Executing: ${pythonExecutable} ${scriptPath} "${query}"`);
+    
+    const pythonProcess = spawn(pythonExecutable, [
+      scriptPath,
+      query
+    ]);
+
+    let result = '';
+    let errorOutput = '';
+    
+    pythonProcess.stdout.on('data', (data) => {
+      result += data.toString();
+      console.log(`Python stdout: ${data}`);
+    });
+
+    pythonProcess.stderr.on('data', (data) => {
+      errorOutput += data.toString();
+      console.error(`Python Error: ${data}`);
+    });
+
+    pythonProcess.on('close', (code) => {
+      console.log(`Python process exited with code ${code}`);
+      if (code !== 0) {
+        return res.status(500).json({ 
+          error: 'RAG search failed', 
+          details: errorOutput 
+        });
+      }
+      
+      try {
+        const parsedResult = JSON.parse(result);
+        res.json({ result: parsedResult });
+      } catch (parseError) {
+        console.error('Failed to parse Python output:', parseError);
+        res.status(500).json({ 
+          error: 'Failed to parse search results', 
+          rawOutput: result,
+          parseError: parseError.message
+        });
+      }
+    });
+  } catch (error) {
+    console.error('RAG search error:', error);
+    res.status(500).json({ error: error.message });
   }
 });

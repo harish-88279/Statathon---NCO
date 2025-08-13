@@ -1,3 +1,0 @@
-Harish@88279
-
-mongodb+srv://hjharish2005:Harish@88279@cluster-statathon.xkyvz84.mongodb.net/?retryWrites=true&w=majority&appName=Cluster-Statathon

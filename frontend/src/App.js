@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { Container, Card, Alert, Form, InputGroup } from 'react-bootstrap';
+import { Container, Card, Alert, Form, InputGroup, Button } from 'react-bootstrap';
 import './App.css';
 import Admin from './components/Admin';
 import AdminDashboard from './components/AdminDashboard';
+import ProtectedRoute from './components/ProtectedRoute';
 
 const TreeNode = ({ label, children, isExpanded, onToggle }) => {
   return (
@@ -44,6 +45,9 @@ function App() {
   const [error, setError] = useState(null);
   const [importStatus, setImportStatus] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [ragResults, setRagResults] = useState(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
 
   const API_URL = 'http://localhost:5000/api';
 
@@ -53,12 +57,13 @@ function App() {
       try {
         setLoading(true);
         const response = await axios.post(`${API_URL}/import-data`);
-        setImportStatus({ type: 'success', message: response.data.message });
+        setImportStatus({ type: 'success', message: 'Database initialized successfully with occupational data' });
       } catch (error) {
         if (error.response && error.response.status === 400) {
-          setImportStatus({ type: 'info', message: 'Using existing database data' });
+          // Data already exists, no need to show message
+          setImportStatus(null);
         } else {
-          setImportStatus({ type: 'danger', message: 'Failed to import data' });
+          setImportStatus({ type: 'danger', message: 'Failed to initialize database. Please refresh the page.' });
           console.error('Error importing data:', error);
         }
       } finally {
@@ -74,6 +79,8 @@ function App() {
     const fetchAllData = async () => {
       try {
         setLoading(true);
+        setConnectionStatus('connecting');
+        
         const occupationsResponse = await axios.get(`${API_URL}/occupations`);
         const data = occupationsResponse.data;
 
@@ -96,8 +103,20 @@ function App() {
         });
 
         setHierarchyData(hierarchy);
+        setConnectionStatus('connected');
+        
+        // Show success message for data loading
+        if (data.length > 0) {
+          setImportStatus({ 
+            type: 'success', 
+            message: `Successfully loaded ${data.length} occupational records from database` 
+          });
+          // Auto-hide success message after 3 seconds
+          setTimeout(() => setImportStatus(null), 3000);
+        }
       } catch (error) {
-        setError('Failed to fetch data');
+        setError('Failed to connect to database. Please check your connection and refresh the page.');
+        setConnectionStatus('disconnected');
         console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
@@ -218,6 +237,98 @@ function App() {
     return filtered;
   };
 
+  const formatMatchedContent = (matches) => {
+    if (!matches) return '';
+    
+    // Extract the occupation data from the matches
+    const lines = matches.split('\n');
+    const occupationData = {};
+    
+    lines.forEach(line => {
+      if (line.includes(':')) {
+        const [key, value] = line.split(':', 2);
+        const cleanKey = key.trim();
+        const cleanValue = value.trim();
+        occupationData[cleanKey] = cleanValue;
+      }
+    });
+    
+    // Format the hierarchical structure
+    let formattedContent = '';
+    
+    if (occupationData.division_title) {
+      formattedContent += `📁 ${occupationData.division_title} (Division: ${occupationData.division || 'N/A'})\n`;
+    }
+    
+    if (occupationData.sub_division_title) {
+      formattedContent += `  📂 ${occupationData.sub_division_title} (Sub-Division: ${occupationData.sub_division || 'N/A'})\n`;
+    }
+    
+    if (occupationData.group_title) {
+      formattedContent += `    📁 ${occupationData.group_title} (Group: ${occupationData.group || 'N/A'})\n`;
+    }
+    
+    if (occupationData.family_title) {
+      formattedContent += `      📂 ${occupationData.family_title} (Family: ${occupationData.family || 'N/A'})\n`;
+    }
+    
+    if (occupationData.occupation_title) {
+      formattedContent += `        💼 ${occupationData.occupation_title}\n`;
+      formattedContent += `           NCO 2015 Code: ${occupationData.occupation_code || 'N/A'}\n`;
+      formattedContent += `           NCO 2004 Code: ${occupationData.nco_2004_code || 'N/A'}\n`;
+    }
+    
+    if (occupationData.description) {
+      formattedContent += `\n📝 Description:\n${occupationData.description}\n`;
+    }
+    
+    // If no structured data found, return original content
+    if (!formattedContent) {
+      return matches;
+    }
+    
+    return formattedContent;
+  };
+
+  const handleRagSearch = async () => {
+    if (!searchTerm.trim()) {
+      setError('Please enter a search query');
+      return;
+    }
+    
+    if (connectionStatus !== 'connected') {
+      setError('Database connection required for AI search. Please wait for connection to establish.');
+      return;
+    }
+    
+    try {
+      setIsSearching(true);
+      setError(null);
+      setRagResults(null);
+      
+      const response = await axios.post(`${API_URL}/rag-search`, { query: searchTerm });
+      setRagResults(response.data.result);
+      
+      // Show success message for search completion
+      setImportStatus({ 
+        type: 'success', 
+        message: `AI search completed successfully for "${searchTerm}"` 
+      });
+      setTimeout(() => setImportStatus(null), 3000);
+    } catch (error) {
+      console.error('RAG search failed:', error);
+      if (error.response?.status === 500) {
+        setError('AI search service unavailable. Please try again later.');
+      } else if (error.code === 'ECONNREFUSED') {
+        setError('Cannot connect to AI search service. Please check if the backend is running.');
+      } else {
+        setError('AI search failed. Please try again.');
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   return (
     <Router>
       <Routes>
@@ -225,7 +336,17 @@ function App() {
           <Container fluid className="py-4">
             <Card className="shadow-sm mb-4">
               <Card.Header className="bg-dark text-white">
-                <h1 className="text-center mb-0">Government Occupational Database</h1>
+                <div className="d-flex justify-content-between align-items-center">
+                  <h1 className="mb-0">Government Occupational Database</h1>
+                  <div className="d-flex align-items-center">
+                    <div className={`me-2 ${connectionStatus === 'connected' ? 'text-success' : connectionStatus === 'connecting' ? 'text-warning' : 'text-danger'}`}>
+                      <i className={`fas fa-circle ${connectionStatus === 'connected' ? 'text-success' : connectionStatus === 'connecting' ? 'text-warning' : 'text-danger'}`}></i>
+                    </div>
+                    <small className="text-muted">
+                      {connectionStatus === 'connected' ? 'Connected' : connectionStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
+                    </small>
+                  </div>
+                </div>
               </Card.Header>
               <Card.Body className="bg-light">
                 <InputGroup className="mb-3">
@@ -233,9 +354,80 @@ function App() {
                     placeholder="Search occupations..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleRagSearch()}
                   />
+                  <Button 
+                    variant="primary" 
+                    onClick={handleRagSearch}
+                    disabled={isSearching}
+                  >
+                    {isSearching ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                        Searching...
+                      </>
+                    ) : (
+                      <>
+                        <i className="fas fa-robot me-2"></i>
+                        AI Search
+                      </>
+                    )}
+                  </Button>
                 </InputGroup>
-
+                {ragResults && (
+                  <div className="mt-4">
+                    <Card className="shadow-sm bg-dark text-white border-secondary">
+                      <Card.Header className="bg-dark text-white border-secondary">
+                        <h4 className="mb-0">
+                          <i className="fas fa-robot me-2"></i>
+                          AI Search Results
+                        </h4>
+                      </Card.Header>
+                      <Card.Body className="bg-dark">
+                        <div className="mb-4">
+                          <h5 className="text-info mb-2">
+                            <i className="fas fa-comment me-2"></i>
+                            AI Response
+                          </h5>
+                          <div className="bg-secondary p-3 rounded border border-secondary">
+                            <p className="mb-0 text-white">{ragResults.llm_answer}</p>
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <h5 className="text-warning mb-2">
+                            <i className="fas fa-search me-2"></i>
+                            Matched Content
+                          </h5>
+                          <div className="bg-secondary p-3 rounded border border-secondary">
+                            <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem' }}>
+                              {formatMatchedContent(ragResults.matches)}
+                            </div>
+                          </div>
+                        </div>
+                      </Card.Body>
+                      <Card.Footer className="bg-dark border-secondary">
+                        <div className="d-flex justify-content-between align-items-center">
+                          <small className="text-muted">
+                            <i className="fas fa-info-circle me-1"></i>
+                            Results based on AI-powered semantic search
+                          </small>
+                          <Button 
+                            variant="outline-light" 
+                            size="sm"
+                            onClick={() => {
+                              setRagResults(null);
+                              setSearchTerm('');
+                            }}
+                          >
+                            <i className="fas fa-times me-1"></i>
+                            Clear Results
+                          </Button>
+                        </div>
+                      </Card.Footer>
+                    </Card>
+                  </div>
+                )}
                 {importStatus && (
                   <Alert variant={importStatus.type} dismissible>
                     {importStatus.message}
@@ -263,7 +455,11 @@ function App() {
           </Container>
         } />
         <Route path="/admin" element={<Admin />} />
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/dashboard" element={
+          <ProtectedRoute>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
       </Routes>
     </Router>
   );
