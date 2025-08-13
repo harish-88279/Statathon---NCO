@@ -6,8 +6,8 @@
 1. Connect your GitHub repository to Render
 2. Create a new Web Service
 3. Set the following configuration:
-   - **Build Command:** `pip install -r backend/requirements.txt`
-   - **Start Command:** `cd backend && python server.js`
+   - **Build Command:** `cd backend && npm install && pip install -r requirements.txt`
+   - **Start Command:** `cd backend && npm start`
    - **Root Directory:** `backend`
 
 ### 2. Environment Variables
@@ -52,8 +52,9 @@ return process.env.REACT_APP_BACKEND_URL || 'https://your-actual-app-name.onrend
 ### Backend
 ```bash
 cd backend
+npm install
 pip install -r requirements.txt
-python server.js
+npm start
 ```
 
 ### Frontend
@@ -70,7 +71,9 @@ The frontend will automatically use `http://localhost:5000` in development mode.
 1. **CORS Configuration:** The backend is already configured to accept requests from any origin in production
 2. **Environment Variables:** Never commit sensitive API keys to Git
 3. **Database:** Make sure your MongoDB database is accessible from Render
-4. **Python Dependencies:** All required packages are listed in `backend/requirements.txt`
+4. **Dependencies:** 
+   - Node.js packages are listed in `backend/package.json`
+   - Python packages are listed in `backend/requirements.txt`
 
 ## Troubleshooting
 
@@ -80,6 +83,7 @@ The frontend will automatically use `http://localhost:5000` in development mode.
 3. Check the browser console for CORS errors
 
 ### Backend deployment fails
-1. Ensure all dependencies are in `requirements.txt`
-2. Check that the start command is correct
-3. Verify environment variables are set in Render
+1. Ensure all Node.js dependencies are in `package.json`
+2. Ensure all Python dependencies are in `requirements.txt`
+3. Check that the start command is correct
+4. Verify environment variables are set in Render
