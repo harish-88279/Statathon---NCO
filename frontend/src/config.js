@@ -3,7 +3,7 @@ const getBackendUrl = () => {
   // Check if we're in production (Vercel deployment)
   if (process.env.NODE_ENV === 'production') {
     // Use environment variable if set, otherwise use a default Render URL
-    return process.env.REACT_APP_BACKEND_URL || 'https://your-render-app-name.onrender.com';
+    return process.env.REACT_APP_BACKEND_URL || 'https://statathon-nco.onrender.com';
   }
   // Development environment - use localhost
   return 'http://localhost:5000';
