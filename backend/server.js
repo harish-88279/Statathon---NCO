@@ -246,7 +246,7 @@ app.post('/api/rag-search', async (req, res) => {
   const scriptPath = path.resolve(__dirname, 'rag_search.py');
   // Prefer an env var; otherwise choose python3 on Linux/macOS and python on Windows
   const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'python' : 'python3');
-  const timeoutMs = Number(process.env.PYTHON_TIMEOUT_MS || 120000); // 2 min default
+  const timeoutMs = Number(process.env.PYTHON_TIMEOUT_MS || 300000); // 2 min default
 
   console.log(`Executing: ${pythonCmd} ${scriptPath} "${query}"`);
   // Optional diagnostics to help on Render
