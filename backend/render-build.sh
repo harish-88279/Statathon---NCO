@@ -5,7 +5,7 @@ set -e
 apt-get update && apt-get install -y python3 python3-pip
 
 # Install your Python dependencies
-pip3 install -r backend/requirements.txt
+pip3 install -r requirements.txt
 
 # Install your Node.js dependencies
 npm install
