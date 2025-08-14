@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 require('dotenv').config();
 
 const app = express();
@@ -160,11 +160,6 @@ app.post('/api/admin/logout', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
-
-
 // Add new occupation
 app.post('/api/occupations', async (req, res) => {
   try {
@@ -245,59 +240,94 @@ app.put('/api/occupations/:id', async (req, res) => {
   }
 });
 
-// Add this route after your existing routes
+// ---------- RAG search route (cross-platform Python spawn) ----------
 app.post('/api/rag-search', async (req, res) => {
+  const { query } = req.body || {};
+  const scriptPath = path.resolve(__dirname, 'rag_search.py');
+  // Prefer an env var; otherwise choose python3 on Linux/macOS and python on Windows
+  const pythonCmd = process.env.PYTHON_CMD || (process.platform === 'win32' ? 'python' : 'python3');
+  const timeoutMs = Number(process.env.PYTHON_TIMEOUT_MS || 120000); // 2 min default
+
+  console.log(`Executing: ${pythonCmd} ${scriptPath} "${query}"`);
+  // Optional diagnostics to help on Render
   try {
-    const { query } = req.body;
-    
-    // Use the full path to the Python executable in the virtual environment
-    // and the full path to the rag_search.py script
-    const pythonExecutable = path.join(__dirname, '..', 'hack_env', 'Scripts', 'python.exe');
-    const scriptPath = path.join(__dirname, 'rag_search.py');
-    
-    console.log(`Executing: ${pythonExecutable} ${scriptPath} "${query}"`);
-    
-    const pythonProcess = spawn(pythonExecutable, [
-      scriptPath,
-      query
-    ]);
-
-    let result = '';
-    let errorOutput = '';
-    
-    pythonProcess.stdout.on('data', (data) => {
-      result += data.toString();
-      console.log(`Python stdout: ${data}`);
-    });
-
-    pythonProcess.stderr.on('data', (data) => {
-      errorOutput += data.toString();
-      console.error(`Python Error: ${data}`);
-    });
-
-    pythonProcess.on('close', (code) => {
-      console.log(`Python process exited with code ${code}`);
-      if (code !== 0) {
-        return res.status(500).json({ 
-          error: 'RAG search failed', 
-          details: errorOutput 
-        });
-      }
-      
-      try {
-        const parsedResult = JSON.parse(result);
-        res.json({ result: parsedResult });
-      } catch (parseError) {
-        console.error('Failed to parse Python output:', parseError);
-        res.status(500).json({ 
-          error: 'Failed to parse search results', 
-          rawOutput: result,
-          parseError: parseError.message
-        });
-      }
-    });
-  } catch (error) {
-    console.error('RAG search error:', error);
-    res.status(500).json({ error: error.message });
+    const whichOut = execSync(`${process.platform === 'win32' ? 'where' : 'which'} ${pythonCmd} || true`).toString();
+    console.log(`Resolved ${pythonCmd}: ${whichOut.trim()}`);
+  } catch (_) {
+    console.log(`Could not resolve ${pythonCmd} via which/where`);
   }
+
+  if (!fs.existsSync(scriptPath)) {
+    return res.status(500).json({
+      error: 'rag_search.py not found on server',
+      scriptPath
+    });
+  }
+
+  let stdout = '';
+  let stderr = '';
+  let responded = false;
+
+  const safeSend = (status, body) => {
+    if (!responded) {
+      responded = true;
+      clearTimeout(killer);
+      return res.status(status).json(body);
+    }
+  };
+
+  const child = spawn(pythonCmd, [scriptPath, query ?? ''], {
+    cwd: __dirname,
+    env: process.env,
+    stdio: ['ignore', 'pipe', 'pipe']
+  });
+
+  child.on('error', (err) => {
+    console.error('Spawn error:', err);
+    safeSend(500, {
+      error: 'Failed to start Python process',
+      details: err.message,
+      hint: 'On Render, ensure python3 is installed and PYTHON_CMD=python3 is set'
+    });
+  });
+
+  child.stdout.on('data', (d) => {
+    const text = d.toString();
+    stdout += text;
+    console.log(`Python stdout: ${text}`);
+  });
+
+  child.stderr.on('data', (d) => {
+    const text = d.toString();
+    stderr += text;
+    console.error(`Python stderr: ${text}`);
+  });
+
+  const killer = setTimeout(() => {
+    console.error(`Python process exceeded ${timeoutMs}ms, killing...`);
+    child.kill('SIGKILL');
+  }, timeoutMs);
+
+  child.on('close', (code) => {
+    console.log(`Python process exited with code ${code}`);
+    if (code !== 0) {
+      return safeSend(500, {
+        error: 'RAG search failed',
+        code,
+        details: stderr || 'No error output from Python'
+      });
+    }
+    // Try parse JSON; if not JSON, return raw string
+    try {
+      const parsed = JSON.parse(stdout);
+      return safeSend(200, { result: parsed });
+    } catch {
+      return safeSend(200, { result: stdout.trim() });
+    }
+  });
+});
+// ---------- end RAG route ----------
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
